@@ -1,13 +1,15 @@
 import streamlit as st
+import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
-from datetime import datetime
+import numpy as np
 
 # ==============================================================================
 # PAGE CONFIGURATION & THEME SETUP
+# Desktop Widescreen PC Viewport
 # ==============================================================================
 st.set_page_config(
-    page_title="CNS Healthcare Appraisal Dashboard",
+    page_title="CNS Healthcare Psychological Services Appraisal Web App",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -18,7 +20,7 @@ st.markdown("""
 <style>
     /* Main Canvas Background */
     .stApp {
-        background-color: #0F172A !important; 
+        background-color: #0F172A !important; /* Deep Slate Navy */
         color: #F8FAFC !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     }
@@ -63,28 +65,34 @@ st.markdown("""
     }
     
     /* Badges */
-    .badge-policy, .badge-target {
+    .badge-policy {
+        background-color: #1E3A8A;
+        color: #DBEAFE;
         font-size: 11px;
         font-weight: 700;
         padding: 3px 8px;
         border-radius: 6px;
         display: inline-block;
         margin-bottom: 8px;
+        border: 1px solid #2563EB;
         font-family: monospace;
     }
-    .badge-policy {
-        background-color: #1E3A8A;
-        color: #DBEAFE;
-        border: 1px solid #2563EB;
-    }
+    
     .badge-target {
         background-color: #065F46;
         color: #D1FAE5;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        display: inline-block;
+        margin-bottom: 8px;
         margin-left: 6px;
         border: 1px solid #059669;
+        font-family: monospace;
     }
 
-    /* Alerts */
+    /* Remediation Alerts */
     .remedy-box {
         background-color: rgba(217, 119, 6, 0.15) !important;
         border-left: 4px solid #F59E0B !important;
@@ -94,7 +102,9 @@ st.markdown("""
         margin-top: 10px !important;
         font-size: 12px !important;
         color: #FDE68A !important;
+        line-height: 1.4;
     }
+    
     .cascade-alert {
         background-color: rgba(220, 38, 38, 0.15) !important;
         border-left: 5px solid #EF4444 !important;
@@ -115,6 +125,7 @@ st.markdown("""
         font-weight: 600 !important;
         border-radius: 6px !important;
     }
+    
     div.stPopover > button:hover {
         background-color: #1E3A8A !important;
         color: #FFFFFF !important;
@@ -123,10 +134,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==============================================================================
-# CACHED DATA & REGULATORY FRAMEWORKS
+# CACHED DATA SOURCES & REGULATORY MAPPINGS
 # ==============================================================================
 @st.cache_data
 def load_claims_telemetry():
+    """Simulates/caches 12-month query of 1,420 historical psychological testing claims."""
     denial_data = pd.DataFrame({
         "Denial Reason / Vulnerability": [
             "Same-Day Provider/Tech NCCI Error (96136/96138)",
@@ -136,135 +148,211 @@ def load_claims_telemetry():
             "Unattached Diagnostic Justification / BTP Clearance"
         ],
         "Claim Count": [384, 298, 245, 182, 111],
-        "Financial Exposure ($)": [76800, 53640, 49000, 36400, 22200]
+        "Financial Exposure ($)": [76800, 53640, 49000, 36400, 22200],
+        "Root Cause": [
+            "Missing Modifier XE/59 & Medical Necessity Addendum",
+            "EHR missing auto-append rules for telehealth feedback",
+            "Lack of hard-stop scheduling lock at 8-hour threshold",
+            "Provider locked note prior to feedback completion",
+            "Lack of integrated physical exam / FBA attachment"
+        ]
     })
+    
     tat_data = pd.DataFrame({
-        "Clinic Site": ["Detroit", "Pontiac", "Southfield", "Novi", "Eastpointe"],
+        "Clinic Site": ["Detroit (Wayne)", "Pontiac (Oakland)", "Southfield (Oakland)", "Novi (Oakland)", "Eastpointe (Macomb)"],
         "Referral-to-Auth (Days)": [3.2, 2.8, 2.5, 2.1, 3.0],
         "Auth-to-Testing (Days)": [8.5, 9.1, 7.2, 6.8, 8.9],
-        "Testing-to-Signed Report (Days)": [14.2, 12.8, 11.5, 10.2, 13.5]
+        "Testing-to-Signed Report (Days)": [14.2, 12.8, 11.5, 10.2, 13.5],
+        "Total Turnaround Time (Days)": [25.9, 24.7, 21.2, 19.1, 25.4]
     })
     return denial_data, tat_data
 
 @st.cache_resource
 def load_regulatory_framework():
+    """Caches authoritative policy frameworks and task definitions."""
     return {
         "Phase 1": {
-            "title": "Phase 1: Discovery, Baseline & Pipeline Mapping",
+            "title": "Phase 1: Discovery, Baseline & Pipeline Mapping (Days 1–30)",
             "objective": "Verify 100% LARA LLP supervision logs, map referral-to-authorization pipelines, and audit CPT 96130 feedback integrity.",
+            "strengths": "**Learner® & Intellection®**: Absorb dense LARA statutes (MCL 333.18223) and Board of Psychology rules; conduct deep root-cause analysis on documentation gaps without premature action bias.",
             "tasks": {
-                "p1_t1": {"label": "Verify LLP Supervision Logs & Form LARA/BPL", "policy": "MCL 333.18223", "target": "100% compliant logs", "desc": "Audit 100% of supervisory files for LLPs/TLLPs.", "rationale": "Direct violation of licensure law.", "remediation": "Halt unsupervised LLP billing. Enforce EHR co-signature locks."},
-                "p1_t2": {"label": "Audit CPT 96130 Documentation Integrity", "policy": "CPT 96130 Guidelines", "target": "100% presence of feedback note", "desc": "Extract and audit 30 completed evaluation charts.", "rationale": "Missing interactive feedback constitutes billing non-compliance.", "remediation": "Deploy mandatory NextGen EHR templates."},
-                "p1_t3": {"label": "Map Referral-to-Authorization Pipeline", "policy": "SAMHSA CCBHC Criteria", "target": "Map 100% of pipeline", "desc": "Shadow intake staff tracking testing referrals.", "rationale": "Violating CCBHC timely access benchmarks.", "remediation": "Resolve bottlenecks in PIHP portals."},
-                "p1_t4": {"label": "Audit Access-to-Care Timeliness Benchmarks", "policy": "MDHHS CCBHC Mandate", "target": "Routine 14d, Comp Eval 60d", "desc": "Recalibrate clinic scheduling queues.", "rationale": "Threatens prospective payment system certification.", "remediation": "Deploy Stepped-Care triage screenings."}
+                "p1_t1": {
+                    "label": "Verify LLP Supervision Logs & Form LARA/BPL Rev. 6/25",
+                    "policy": "MCL 333.18223 & LARA Rule 338.2569",
+                    "target": "100% compliant logs; 4 hrs/mo LP supervision",
+                    "desc": "Audit 100% of supervisory files for LLPs/TLLPs across all clinics. Ensure 4 hours/month face-to-face LP supervision is logged on Form LARA/BPL Rev. 6/25 and LP co-signatures are present in EHR.",
+                    "rationale": "Unsupervised LLP clinical activity is a direct violation of licensure law, exposing CNS Healthcare to state disciplinary actions and retroactive Medicaid payment recoupments.",
+                    "remediation": "Immediately halt unsupervised LLP billing. Centralize supervision logs in an automated HR tracking portal and enforce EHR co-signature locks before claim release."
+                },
+                "p1_t2": {
+                    "label": "Audit CPT 96130 Documentation Integrity (Interactive Feedback)",
+                    "policy": "CPT 96130 Guidelines & Medicare LCD",
+                    "target": "100% presence of feedback note in sample",
+                    "desc": "Extract and audit 30 completed psychological/neuropsychological evaluation charts across pediatric, adult, and geriatric caseloads.",
+                    "rationale": "Billing evaluation code CPT 96130 without documenting face-to-face interactive feedback constitutes billing non-compliance and FWA vulnerability.",
+                    "remediation": "Disclose deficient billing encounters. Deploy mandatory NextGen EHR templates requiring a timestamped 'Interactive Feedback and Clinical Decision Making' section prior to note locking."
+                },
+                "p1_t3": {
+                    "label": "Map Referral-to-Authorization Pipeline & PIHP Portals",
+                    "policy": "SAMHSA CCBHC Criteria & MDHHS Handbook",
+                    "target": "Map 100% of pipeline lifecycle & velocity",
+                    "desc": "Shadow intake staff tracking testing referrals from request through EHR queues to PIHP authorization portals (MHWIN/CHAMPS).",
+                    "rationale": "Extended waiting periods delay diagnostic testing, violating CCBHC timely access benchmarks and triggering state Corrective Action Plans.",
+                    "remediation": "Map administrative handoffs, resolve bottlenecks in PIHP portals, and establish open-access triage scheduling blocks."
+                },
+                "p1_t4": {
+                    "label": "Audit Access-to-Care Timeliness Benchmarks",
+                    "policy": "MDHHS CCBHC Timely Access Mandate",
+                    "target": "Crisis <3h, Urgent 1d, Routine 14d, Comp Eval 60d",
+                    "desc": "Recalibrate clinic scheduling queues to strictly enforce state access benchmarks: Crisis (<3 hours), Urgent (1 business day), Routine (14 calendar days), Comprehensive Eval (60 days).",
+                    "rationale": "Exceeding access benchmarks violates CCBHC demonstration standards and threatens prospective payment system (PPS-1) certification.",
+                    "remediation": "Deploy Stepped-Care triage screenings (CPT 96127) at intake to manage waitlists and provide active interim care coordination."
+                }
             }
         },
         "Phase 2": {
-            "title": "Phase 2: Operational Analytics, Financial Audit & Gaps",
-            "objective": "Analyze denial codes, calculate Turnaround Times, and conduct Overhead vs. PPS ROI analysis.",
+            "title": "Phase 2: Operational Analytics, Financial Audit & Gap Assessment (Days 31–60)",
+            "objective": "Analyze CPT 96130–96139 denial codes, calculate median Turnaround Times against 1/14/60-day MDHHS mandates, and conduct an Overhead vs. PPS ROI analysis.",
+            "strengths": "**Ideation® & Individualization®**: Design custom voice macros in Dragon Medical One and NextGen EHR templates; tailor clinical coaching to each clinician's unique writing style.",
             "tasks": {
-                "p2_t1": {"label": "Audit 12-Month CPT Remittance Denials", "policy": "RCM 835 Guidelines", "target": "Identify top 3 denial codes", "desc": "Extract claims dataset to isolate edit rejections.", "rationale": "Causes massive revenue leakage.", "remediation": "Correct billing errors at point of scheduling."},
-                "p2_t2": {"label": "Execute NCCI Modifier XE/59 Audit", "policy": "CMS NCCI", "target": "100% accuracy", "desc": "Audit same-day psychologist and tech administration.", "rationale": "Triggers automated NCCI denials.", "remediation": "Hardcode NCCI validation rules in EHR."},
-                "p2_t3": {"label": "Telehealth Modifier & POS Compliance", "policy": "MDHHS Telehealth Guidelines", "target": "100% compliance", "desc": "Verify virtual feedback claims append Modifier 95.", "rationale": "Improper POS codes cause immediate claim rejections.", "remediation": "Configure EHR telehealth modules to auto-append modifiers."},
-                "p2_t4": {"label": "Evaluate PPS Encounter Splitting & Multi-Day Testing", "policy": "CMS & MDHHS FWA", "target": "100% documented justification", "desc": "Audit multi-day testing sessions.", "rationale": "Splitting testing to generate daily PPS claims violates CMS rules.", "remediation": "Enforce mandatory EHR justification prior to scheduling multi-day tests."},
-                "p2_t5": {"label": "Calculate Clinician Report TAT", "policy": "CARF Timeliness Criteria", "target": "Median TAT < 14 days", "desc": "Extract EHR timestamps for turnaround.", "rationale": "Extended report TATs delay psychiatric prescriptions.", "remediation": "Deliver targeted coaching to outlying write-times."},
-                "p2_t6": {"label": "Conduct Testing Kit Overhead vs. PPS-1 ROI Analysis", "policy": "CCBHC PPS Guidelines", "target": "Establish cost-per-assessment ratio", "desc": "Cross-reference vendor invoices against PPS revenues.", "rationale": "Unmonitored licensing expenses create unrecognized deficits.", "remediation": "Transition completely to digital scoring platforms."}
+                "p2_t1": {
+                    "label": "Audit 12-Month CPT 96130–96139 Remittance Denial Data",
+                    "policy": "RCM 835 Remittance Guidelines",
+                    "target": "Identify top 3 testing denial reason codes",
+                    "desc": "Extract and analyze a 12-month claims dataset to isolate top clearinghouse edit rejections (CO-97 bundled codes, CO-50 medical necessity).",
+                    "rationale": "Unresolved clearinghouse denials cause massive revenue leakage and administrative burden for retroactive manual billing appeals.",
+                    "remediation": "Correct structural billing errors at point of scheduling and update front-end EHR clearinghouse validation rules."
+                },
+                "p2_t2": {
+                    "label": "Execute NCCI Modifier XE/59 Audit (Same-Day Billing)",
+                    "policy": "CMS National Correct Coding Initiative (NCCI)",
+                    "target": "100% same-day provider/tech modifier accuracy",
+                    "desc": "Audit same-day psychologist administration (96136) and technician administration (96138) claims for proper Modifier XE/59 application.",
+                    "rationale": "Same-day testing administration without a modifier triggers automated NCCI denials and FWA compliance scrutiny.",
+                    "remediation": "Hardcode NCCI validation rules in EHR billing modules to flag same-day testing code pairs and require a Medical Necessity Addendum."
+                },
+                "p2_t3": {
+                    "label": "Audit Telehealth Modifier & Place of Service Compliance",
+                    "policy": "MDHHS Telehealth Guidelines",
+                    "target": "100% virtual feedback modifier compliance",
+                    "desc": "Verify virtual feedback claims append Modifier 95/GT and POS 02/10, while enforcing hard-stops against remote testing administration.",
+                    "rationale": "Missing telehealth modifiers or improper POS codes cause immediate claim rejections and suppress realization rates.",
+                    "remediation": "Configure EHR telehealth modules to auto-append POS 02/10 and Modifier 95 when virtual links are generated, and block remote admin for unvalidated tests."
+                },
+                "p2_t4": {
+                    "label": "Evaluate PPS Encounter Splitting & Multi-Day Testing Rules",
+                    "policy": "CMS & MDHHS FWA Unbundling Guidelines",
+                    "target": "100% documented clinical justification for multi-day testing",
+                    "desc": "Audit multi-day testing sessions to ensure scheduling is strictly driven by clinical necessity (patient fatigue, pediatric ADHD, motor limits).",
+                    "rationale": "Splitting testing across multiple days solely to generate extra daily PPS encounter claims (`T1040`) violates CMS/MDHHS rules and invites recoupments.",
+                    "remediation": "Enforce a mandatory EHR selection titled 'Justification for Multi-Day Testing' prior to scheduling follow-up evaluation sessions."
+                },
+                "p2_t5": {
+                    "label": "Calculate Clinician Report Turnaround Times (TAT)",
+                    "policy": "CARF Quality Timeliness Criteria",
+                    "target": "Median TAT < 14 days; total eval < 60 days",
+                    "desc": "Extract EHR timestamps to measure mean/median days from test completion to final signed report, segmenting clinician performance.",
+                    "rationale": "Extended report TATs delay psychiatric prescriptions and therapy entry, violating CCBHC care coordination mandates.",
+                    "remediation": "Segment EHR timestamps into 3 intervals (ref-to-auth, auth-to-test, test-to-signed) and deliver targeted coaching to outlying write-times."
+                },
+                "p2_t6": {
+                    "label": "Conduct Testing Kit Overhead vs. PPS-1 ROI Analysis",
+                    "policy": "CCBHC PPS Cost Allocation Guidelines",
+                    "target": "Establish cost-per-assessment ratio",
+                    "desc": "Cross-reference vendor invoices for paper kits and digital scoring licenses (Pearson Q-interactive, PARiConnect) against daily PPS revenues (`T1040`).",
+                    "rationale": "Unmonitored diagnostic kit and licensing expenses create unrecognized department deficits under flat daily PPS encounter rates.",
+                    "remediation": "Transition completely to digital scoring platforms to lower material overhead and reduce administration time by up to 40%."
+                }
             }
         },
         "Phase 3": {
-            "title": "Phase 3: Strategic Synthesis, CQI & Executive Roadmap",
-            "objective": "Implement Protocols, launch dashboard, embed results, and deliver roadmap.",
+            "title": "Phase 3: Strategic Synthesis, CQI Framework & Executive Roadmap (Days 61–90)",
+            "objective": "Implement Stepped-Care Assessment Protocol, launch automated EHR KPI dashboard, embed testing results into PCPs, and deliver 12-month roadmap.",
+            "strengths": "**Strategic®**: Synthesize findings across all five audit pillars into a razor-sharp business case for executive leadership, prioritizing top capital investments.",
             "tasks": {
-                "p3_t1": {"label": "Implement Stepped-Care Protocol", "policy": "SAMHSA CCBHC Service #2", "target": "100% referrals triaged", "desc": "Deploy clinical algorithm filtering low-acuity cases.", "rationale": "Wastes psychologist FTE capacity.", "remediation": "Develop Stepped-Care Assessment clinical algorithm."},
-                "p3_t2": {"label": "Configure Live EHR KPI Dashboard", "policy": "CCBHC CQI Plan", "target": "Live tracking of 5 KPIs", "desc": "Build an EHR-integrated Business Intelligence dashboard.", "rationale": "Lack of real-time visual tracking.", "remediation": "Coordinate with IT to configure a live BI dashboard."},
-                "p3_t3": {"label": "Embed Results into Person-Centered Plans", "policy": "MDHHS & SAMHSA", "target": "100% integration", "desc": "Establish automated EHR workflows.", "rationale": "Testing operates as an isolated, high-cost exercise.", "remediation": "Implement automated notifications."},
-                "p3_t4": {"label": "Deliver Executive Appraisal & 12-Month Roadmap", "policy": "CCBHC Program Requirement #6", "target": "Formal Board submission", "desc": "Synthesize all audit findings into the formal report.", "rationale": "Failure to plan for long-term investments results in operational stagnation.", "remediation": "Present the 12-month roadmap to executive leadership."}
+                "p3_t1": {
+                    "label": "Implement Stepped-Care Assessment Triage Protocol",
+                    "policy": "SAMHSA CCBHC Core Service #2",
+                    "target": "100% referrals triaged via brief screening first",
+                    "desc": "Deploy a clinical algorithm filtering low-acuity cases via brief screenings (CPT 96127) at intake, reserving multi-hour batteries for complex SMI/SED diagnosis.",
+                    "rationale": "Conducting multi-day diagnostic testing for low-acuity referrals wastes psychologist FTE capacity, inflating waitlists for high-acuity consumers.",
+                    "remediation": "Develop and approve the Stepped-Care Assessment clinical algorithm, establishing a strict diagnostic intake screen to preserve testing resources."
+                },
+                "p3_t2": {
+                    "label": "Configure Live EHR Assessment KPI Dashboard",
+                    "policy": "CCBHC Continuous Quality Improvement (CQI) Plan",
+                    "target": "Live tracking of 5 core clinical-financial KPIs",
+                    "desc": "Build an EHR-integrated Business Intelligence dashboard tracking weekly referral volume, waitlist duration, median TAT, denial rates, and cost-per-assessment.",
+                    "rationale": "Lack of real-time visual tracking leads to unrecognized bottlenecks and billing errors, resulting in compounding financial loss.",
+                    "remediation": "Coordinate with IT to configure a live BI dashboard giving leadership immediate visibility over clinician performance and claim denials."
+                },
+                "p3_t3": {
+                    "label": "Embed Diagnostic Results into Person-Centered Plans (PCP/IPOS)",
+                    "policy": "MDHHS & SAMHSA Care Criteria",
+                    "target": "100% integration of testing recommendations in IPOS",
+                    "desc": "Establish automated EHR workflows ensuring testing formulations directly populate the consumer's Individualized Plan of Service (IPOS).",
+                    "rationale": "If diagnostic reports fail to influence the PCP, testing operates as an isolated, high-cost administrative exercise.",
+                    "remediation": "Implement automated notifications from the psychology EHR queue flagging recommendations directly to the assigned case manager."
+                },
+                "p3_t4": {
+                    "label": "Deliver Executive Appraisal Report & 12-Month Strategic Roadmap",
+                    "policy": "CCBHC Program Requirement #6",
+                    "target": "Formal Board submission & budget approval",
+                    "desc": "Synthesize all audit findings into the formal 'State of Psychological Testing' report and present the 12-month strategic optimization roadmap.",
+                    "rationale": "Failure to plan for long-term capital investments results in operational stagnation, clinician burnout, and unresolved financial leaks.",
+                    "remediation": "Present the 12-month roadmap to executive leadership to secure budget allocation and strategic alignment for top operational priorities."
+                }
             }
         }
     }
 
-# ==============================================================================
-# STATE MANAGEMENT
-# ==============================================================================
-reg_db = load_regulatory_framework()
-denial_df, tat_df = load_claims_telemetry()
-
-# Initialize session state for widgets binding to ensure snappy real-time reactivity
-for phase_key, phase_val in reg_db.items():
-    for task_key in phase_val["tasks"].keys():
-        if f"status_{task_key}" not in st.session_state:
-            st.session_state[f"status_{task_key}"] = "Pending"
-        if f"note_{task_key}" not in st.session_state:
-            st.session_state[f"note_{task_key}"] = ""
-
-# ==============================================================================
-# SIDEBAR: 90-DAY PROGRESS TRACKER WIDGET
-# ==============================================================================
-with st.sidebar:
-    st.markdown("### ⏱️ 90-Day Execution Tracker")
-    
-    # Dashboard Slider Widget to act as timeframe
-    current_day = st.slider("Timeline Progression (Days)", min_value=1, max_value=90, value=15, help="Simulate or track physical progress through the 90 day plan.")
-    
-    if current_day <= 30:
-        st.info("**Current Stage:** Phase 1 (Discovery)\n\nDays 1-30")
-    elif current_day <= 60:
-        st.warning("**Current Stage:** Phase 2 (Analytics)\n\nDays 31-60")
-    else:
-        st.success("**Current Stage:** Phase 3 (Synthesis)\n\nDays 61-90")
-        
-    st.progress(current_day / 90.0)
-    st.markdown("---")
-    
-    # Calculate global widget metrics directly from real-time session_state keys
-    total_tasks, compliant, risks = 0, 0, 0
-    
+# Initialize Session State Database
+if "appraisal_state" not in st.session_state:
+    st.session_state.appraisal_state = {}
+    reg_db = load_regulatory_framework()
     for phase_key, phase_val in reg_db.items():
         for task_key in phase_val["tasks"].keys():
-            total_tasks += 1
-            status = st.session_state[f"status_{task_key}"]
-            if status == "Compliant": compliant += 1
-            elif status == "Outside of Compliance": risks += 1
-                
-    pending = total_tasks - compliant - risks
-    
-    st.markdown("### Compliance Overview")
-    st.metric("Total Plan Objectives", total_tasks)
-    st.metric("✅ Verified Compliant", compliant)
-    st.metric("🚨 Active Risk Gaps", risks)
-    st.metric("⏳ Pending Audits", pending)
+            st.session_state.appraisal_state[task_key] = {
+                "status": "Pending",
+                "notes": ""
+            }
+
+denial_df, tat_df = load_claims_telemetry()
+reg_db = load_regulatory_framework()
 
 # ==============================================================================
-# MAIN APP HEADER & TABS
+# HEADER BANNER & APP NAVIGATION
 # ==============================================================================
 st.markdown("""
 <div class="header-banner">
-    <div class="header-title">CNS Healthcare Psychological Services Appraisal Widget</div>
-    <div class="header-subtitle">Executive Command Terminal • Dynamic 90-Day Execution & Compliance Engine</div>
+    <div class="header-title">CNS Healthcare Psychological Services Appraisal Portal</div>
+    <div class="header-subtitle">Executive Command Terminal • 90-Day Execution Plan & Compliance Audit Engine</div>
 </div>
 """, unsafe_allow_html=True)
 
 nav_tabs = st.tabs([
-    "📍 Phase 1", "📊 Phase 2", "🚀 Phase 3", 
-    "📈 Telemetry", "📄 Final Appraisal Builder"
+    " Phase 1: Discovery",
+    " Phase 2: Analytics",
+    " Phase 3: Strategic Roadmap",
+    " Executive Memorandum & Risk Matrix",
+    " Supervisor Oversight & Telemetry"
 ])
 
-status_opts = ["Pending", "Compliant", "Outside of Compliance"]
-
-# DRY Function to seamlessly render execution phases 
-def render_phase_tab(phase_key, cascade_checks=[]):
-    phase_data = reg_db[phase_key]
-    st.markdown(f"### **{phase_data['title']}**")
-    st.info(f"**Objective**: {phase_data['objective']}")
+# ==============================================================================
+# TAB 1: PHASE 1 DISCOVERY
+# ==============================================================================
+with nav_tabs[0]:
+    st.markdown(f"### **{reg_db['Phase 1']['title']}**")
+    st.info(f"**Objective**: {reg_db['Phase 1']['objective']}")
+    st.markdown(f"**CliftonStrengths Alignment**: {reg_db['Phase 1']['strengths']}")
     
-    # Intelligent baseline dependency check that warns users of structural failures before continuing
-    if cascade_checks:
-        gaps = [tk for tk in cascade_checks if st.session_state[f"status_{tk}"] == "Outside of Compliance"]
-        if gaps:
-            gap_labels = [reg_db[p]["tasks"][tk]["label"] for p in reg_db for tk in reg_db[p]["tasks"] if tk in gaps]
-            st.markdown(f'<div class="cascade-alert">🚨 <strong>CARRYOVER RISK DETECTED:</strong> Unresolved baseline issues threaten this phase: {", ".join(gap_labels)}</div>', unsafe_allow_html=True)
+    with st.popover(" VIEW PHASE 1 DIAGNOSTIC BLUEPRINT"):
+        st.markdown("**Phase 1 Strategic Scope**")
+        st.write("Focuses on regulatory discovery and clinical baseline mapping across Wayne, Oakland, and Macomb clinics. Under CCBHC guidelines, establishing an empirical baseline is critical prior to system re-engineering.")
 
-    for t_key, t_val in phase_data["tasks"].items():
+    st.markdown("---")
+    
+    for t_key, t_val in reg_db["Phase 1"]["tasks"].items():
         st.markdown('<div class="audit-card">', unsafe_allow_html=True)
         col_a, col_b = st.columns([3, 2])
         
@@ -277,133 +365,264 @@ def render_phase_tab(phase_key, cascade_checks=[]):
             with st.popover(" TASK DIAGNOSTICS"):
                 st.markdown(f"**Policy Source**: {t_val['policy']}")
                 st.markdown(f"**Appraisal Rationale**: {t_val['rationale']}")
-
-            # Widget keys bind DIRECTLY to st.session_state bypassing extra callback logic
-            st.selectbox("Diagnostic Status", status_opts, key=f"status_{t_key}")
-            st.text_input("Audit Notes / Findings", key=f"note_{t_key}", placeholder="Enter specific audit remarks here...")
             
-        if st.session_state[f"status_{t_key}"] == "Outside of Compliance":
+            curr_status = st.session_state.appraisal_state[t_key]["status"]
+            status_opts = ["Pending", "Compliant", "Outside of Compliance"]
+            
+            new_status = st.selectbox(
+                "Diagnostic Status",
+                status_opts,
+                index=status_opts.index(curr_status),
+                key=f"sel_{t_key}"
+            )
+            st.session_state.appraisal_state[t_key]["status"] = new_status
+            
+            user_notes = st.text_input("Audit Notes / Findings", value=st.session_state.appraisal_state[t_key]["notes"], key=f"note_{t_key}")
+            st.session_state.appraisal_state[t_key]["notes"] = user_notes
+            
+        if new_status == "Outside of Compliance":
             st.markdown(f'<div class="remedy-box">⚠️ <strong>REMEDIATION DIRECTIVE:</strong> {t_val["remediation"]}</div>', unsafe_allow_html=True)
             
         st.markdown('</div>', unsafe_allow_html=True)
 
-with nav_tabs[0]: render_phase_tab("Phase 1")
-with nav_tabs[1]: render_phase_tab("Phase 2", cascade_checks=list(reg_db["Phase 1"]["tasks"].keys()))
-with nav_tabs[2]: render_phase_tab("Phase 3", cascade_checks=list(reg_db["Phase 2"]["tasks"].keys()))
+# ==============================================================================
+# TAB 2: PHASE 2 ANALYTICS
+# ==============================================================================
+with nav_tabs[1]:
+    st.markdown(f"### **{reg_db['Phase 2']['title']}**")
+    st.info(f"**Objective**: {reg_db['Phase 2']['objective']}")
+    st.markdown(f"**CliftonStrengths Alignment**: {reg_db['Phase 2']['strengths']}")
+    
+    # Cascade check from Phase 1
+    p1_gaps = [tk for tk in reg_db["Phase 1"]["tasks"].keys() if st.session_state.appraisal_state[tk]["status"] == "Outside of Compliance"]
+    if p1_gaps:
+        st.markdown('<div class="cascade-alert">🚨 <strong>CRITICAL CARRYOVER ALERT: UNRESOLVED PHASE 1 RISKS DETECTED!</strong><br>The following baseline components remain out of compliance, threatening Phase 2 operational validity: ' + ", ".join([reg_db["Phase 1"]["tasks"][tk]["label"] for tk in p1_gaps]) + '</div>', unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    for t_key, t_val in reg_db["Phase 2"]["tasks"].items():
+        st.markdown('<div class="audit-card">', unsafe_allow_html=True)
+        col_a, col_b = st.columns([3, 2])
+        
+        with col_a:
+            st.markdown(f'<span class="badge-policy">{t_val["policy"]}</span> <span class="badge-target">KPI: {t_val["target"]}</span>', unsafe_allow_html=True)
+            st.markdown(f"#### **{t_val['label']}**")
+            st.write(t_val["desc"])
+            
+        with col_b:
+            with st.popover(" TASK DIAGNOSTICS"):
+                st.markdown(f"**Policy Source**: {t_val['policy']}")
+                st.markdown(f"**Appraisal Rationale**: {t_val['rationale']}")
+            
+            curr_status = st.session_state.appraisal_state[t_key]["status"]
+            status_opts = ["Pending", "Compliant", "Outside of Compliance"]
+            
+            new_status = st.selectbox(
+                "Diagnostic Status",
+                status_opts,
+                index=status_opts.index(curr_status),
+                key=f"sel_{t_key}"
+            )
+            st.session_state.appraisal_state[t_key]["status"] = new_status
+            
+            user_notes = st.text_input("Audit Notes / Findings", value=st.session_state.appraisal_state[t_key]["notes"], key=f"note_{t_key}")
+            st.session_state.appraisal_state[t_key]["notes"] = user_notes
+            
+        if new_status == "Outside of Compliance":
+            st.markdown(f'<div class="remedy-box">⚠️ <strong>REMEDIATION DIRECTIVE:</strong> {t_val["remediation"]}</div>', unsafe_allow_html=True)
+            
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================================================================
-# TAB 4: SUPERVISOR OVERSIGHT & TELEMETRY
+# TAB 3: PHASE 3 STRATEGIC ROADMAP
+# ==============================================================================
+with nav_tabs[2]:
+    st.markdown(f"### **{reg_db['Phase 3']['title']}**")
+    st.info(f"**Objective**: {reg_db['Phase 3']['objective']}")
+    st.markdown(f"**CliftonStrengths Alignment**: {reg_db['Phase 3']['strengths']}")
+    
+    p2_gaps = [tk for tk in reg_db["Phase 2"]["tasks"].keys() if st.session_state.appraisal_state[tk]["status"] == "Outside of Compliance"]
+    if p2_gaps:
+        st.markdown('<div class="cascade-alert">🚨 <strong>CRITICAL CARRYOVER ALERT: UNRESOLVED PHASE 2 GAPS DETECTED!</strong><br>The following operational gaps remain unresolved, impacting Phase 3 roadmap stability: ' + ", ".join([reg_db["Phase 2"]["tasks"][tk]["label"] for tk in p2_gaps]) + '</div>', unsafe_allow_html=True)
+
+    st.markdown("---")
+    
+    for t_key, t_val in reg_db["Phase 3"]["tasks"].items():
+        st.markdown('<div class="audit-card">', unsafe_allow_html=True)
+        col_a, col_b = st.columns([3, 2])
+        
+        with col_a:
+            st.markdown(f'<span class="badge-policy">{t_val["policy"]}</span> <span class="badge-target">KPI: {t_val["target"]}</span>', unsafe_allow_html=True)
+            st.markdown(f"#### **{t_val['label']}**")
+            st.write(t_val["desc"])
+            
+        with col_b:
+            with st.popover(" TASK DIAGNOSTICS"):
+                st.markdown(f"**Policy Source**: {t_val['policy']}")
+                st.markdown(f"**Appraisal Rationale**: {t_val['rationale']}")
+            
+            curr_status = st.session_state.appraisal_state[t_key]["status"]
+            status_opts = ["Pending", "Compliant", "Outside of Compliance"]
+            
+            new_status = st.selectbox(
+                "Diagnostic Status",
+                status_opts,
+                index=status_opts.index(curr_status),
+                key=f"sel_{t_key}"
+            )
+            st.session_state.appraisal_state[t_key]["status"] = new_status
+            
+            user_notes = st.text_input("Audit Notes / Findings", value=st.session_state.appraisal_state[t_key]["notes"], key=f"note_{t_key}")
+            st.session_state.appraisal_state[t_key]["notes"] = user_notes
+            
+        if new_status == "Outside of Compliance":
+            st.markdown(f'<div class="remedy-box">⚠️ <strong>REMEDIATION DIRECTIVE:</strong> {t_val["remediation"]}</div>', unsafe_allow_html=True)
+            
+        st.markdown('</div>', unsafe_allow_html=True)
+
+# ==============================================================================
+# TAB 4: EXECUTIVE MEMORANDUM & RISK MATRIX
 # ==============================================================================
 with nav_tabs[3]:
-    st.markdown("### **Supervisor Oversight & Claims Telemetry**")
+    st.markdown("### **Executive Status Appraisal Memorandum**")
+    st.caption("Aggregated Compliance Status & Active Remediation Directives for Supervisor Review")
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("##### **12-Month CPT Denial Drivers**")
-        fig_donut = px.pie(denial_df, values="Claim Count", names="Denial Reason / Vulnerability", hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
-        fig_donut.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#F8FAFC", margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
+    # Calculate counts
+    total_tasks = 0
+    compliant_items = []
+    non_compliant_items = []
+    pending_items = []
+    
+    for phase_key, phase_val in reg_db.items():
+        for t_key, t_val in phase_val["tasks"].items():
+            total_tasks += 1
+            st_val = st.session_state.appraisal_state[t_key]["status"]
+            notes_val = st.session_state.appraisal_state[t_key]["notes"]
+            item_entry = {"key": t_key, "info": t_val, "phase": phase_val["title"], "notes": notes_val}
+            
+            if st_val == "Compliant":
+                compliant_items.append(item_entry)
+            elif st_val == "Outside of Compliance":
+                non_compliant_items.append(item_entry)
+            else:
+                pending_items.append(item_entry)
+                
+    comp_rate = (len(compliant_items) / total_tasks) * 100 if total_tasks > 0 else 0
+    
+    # Metrics Scorecard
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    m_col1.metric("Overall Compliance Rate", f"{comp_rate:.1f}%")
+    m_col2.metric("Verified Compliant Tasks", len(compliant_items))
+    m_col3.metric("Active Non-Compliant Gaps", len(non_compliant_items))
+    m_col4.metric("Pending Audits", len(pending_items))
+    
+    st.progress(comp_rate / 100.0)
+    st.markdown("---")
+    
+    col_left, col_right = st.columns(2)
+    
+    with col_left:
+        st.markdown("#### ** Verified Compliant Operations**")
+        if compliant_items:
+            for item in compliant_items:
+                st.success(f"**{item['info']['label']}**\n\n*Policy*: {item['info']['policy']} | *KPI*: {item['info']['target']}\n\n*Notes*: {item['notes'] if item['notes'] else 'Verified Compliant'}")
+        else:
+            st.write("No tasks currently marked as compliant.")
+            
+    with col_right:
+        st.markdown("#### ** Active Risk & Mitigation Matrix**")
+        if non_compliant_items:
+            for item in non_compliant_items:
+                st.error(f"**[GAP] {item['info']['label']}**\n\n*Policy*: {item['info']['policy']}\n\n*Systemic Rationale*: {item['info']['rationale']}")
+                st.markdown(f'<div class="remedy-box">🛠️ <strong>REMEDIATION DIRECTIVE:</strong> {item["info"]["remediation"]}</div>', unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+        else:
+            st.write("No active non-compliant gaps flagged.")
+
+# ==============================================================================
+# TAB 5: SUPERVISOR OVERSIGHT & TELEMETRY
+# ==============================================================================
+with nav_tabs[4]:
+    st.markdown("### **Supervisor Oversight & Claims Telemetry**")
+    st.caption("Real-Time Analytics, LARA Supervisory Audits & CCBHC Quality Metrics")
+    
+    # Row 1: Telemetry Visualizations
+    col_chart1, col_chart2 = st.columns(2)
+    
+    with col_chart1:
+        st.markdown("#### **12-Month CPT Denial Drivers (1,420 Claims)**")
+        fig_donut = px.pie(
+            denial_df,
+            values="Claim Count",
+            names="Denial Reason / Vulnerability",
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        fig_donut.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#F8FAFC",
+            margin=dict(t=20, b=20, l=20, r=20)
+        )
         st.plotly_chart(fig_donut, use_container_width=True)
-    with c2:
-        st.markdown("##### **Report Turnaround Time (TAT)**")
-        fig_bar = px.bar(tat_df, x="Clinic Site", y=["Referral-to-Auth (Days)", "Auth-to-Testing (Days)", "Testing-to-Signed Report (Days)"], barmode="stack", color_discrete_sequence=["#3B82F6", "#F59E0B", "#10B981"])
-        fig_bar.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font_color="#F8FAFC", margin=dict(t=20, b=20, l=20, r=20), showlegend=False)
+        
+    with col_chart2:
+        st.markdown("#### **Clinician Report Turnaround Time (TAT) by Clinic**")
+        fig_bar = px.bar(
+            tat_df,
+            x="Clinic Site",
+            y=["Referral-to-Auth (Days)", "Auth-to-Testing (Days)", "Testing-to-Signed Report (Days)"],
+            title="Segmented Report Write-Time Intervals",
+            barmode="stack",
+            color_discrete_sequence=["#3B82F6", "#F59E0B", "#10B981"]
+        )
+        fig_bar.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font_color="#F8FAFC",
+            legend_title_text="Workflow Interval",
+            margin=dict(t=30, b=20, l=20, r=20)
+        )
         st.plotly_chart(fig_bar, use_container_width=True)
 
-# ==============================================================================
-# TAB 5: CONSTRUCT FINAL APPRAISAL (DYNAMIC REPORT COMPILER)
-# ==============================================================================
-def generate_appraisal_report(day):
-    # Generates a pristine Markdown memo aggregating all inputs from the 3 Phases
-    lines = [
-        "# CNS Healthcare Psychological Services",
-        "## 90-Day Executive Appraisal Report",
-        f"**Generated on:** {datetime.now().strftime('%B %d, %Y')}",
-        f"**Timeline Progression:** Day {day} of 90",
-        "---",
-        "### 1. Executive Summary",
-        "This dynamic appraisal memorandum synthesizes operational baselines, compliance metrics, and strategic remediations across clinical sites, strictly aligned with LARA statutes and CCBHC program constraints.\n"
-    ]
+    st.markdown("---")
     
-    comps, gaps, pends = [], [], []
-    for ph_k, ph_v in reg_db.items():
-        for tk, tv in ph_v["tasks"].items():
-            status = st.session_state[f"status_{tk}"]
-            notes = st.session_state[f"note_{tk}"]
-            item = {"phase": ph_v["title"], "task": tv, "notes": notes}
-            if status == "Compliant": comps.append(item)
-            elif status == "Outside of Compliance": gaps.append(item)
-            else: pends.append(item)
+    # Row 2: LARA Ledger & Quality Measures
+    col_lara, col_qbp = st.columns(2)
     
-    total = len(comps) + len(gaps) + len(pends)
-    comp_rate = (len(comps) / total) * 100 if total > 0 else 0
-    lines.extend([
-        f"- **Overall Compliance Rate:** {comp_rate:.1f}%",
-        f"- **Verified Compliant Workflows:** {len(comps)}",
-        f"- **Identified Operational Risks:** {len(gaps)}",
-        f"- **Pending Evaluations:** {len(pends)}",
-        "---",
-        "### 2. Verified Compliant Operations"
-    ])
-    
-    if not comps:
-        lines.append("> *No fully compliant workflows logged yet.*")
-    else:
-        for c in comps:
-            lines.append(f"#### ✅ {c['task']['label']}")
-            lines.append(f"- **Policy:** {c['task']['policy']} | **Target:** {c['task']['target']}")
-            lines.append(f"- **Auditor Notes:** {c['notes'] if c['notes'] else 'Verified without issue.'}\n")
-            
-    lines.extend([
-        "---",
-        "### 3. Active Risk & Mitigation Matrix"
-    ])
-    
-    if not gaps:
-        lines.append("> *No active non-compliant gaps flagged.*")
-    else:
-        for g in gaps:
-            lines.append(f"#### ⚠️ [GAP] {g['task']['label']}")
-            lines.append(f"- **Systemic Rationale:** {g['task']['rationale']}")
-            lines.append(f"- **Auditor Notes:** {g['notes'] if g['notes'] else 'Pending auditor remarks.'}")
-            lines.append(f"- **REMEDIATION DIRECTIVE:** {g['task']['remediation']}\n")
-            
-    lines.extend([
-        "---",
-        "### 4. Pending Reviews"
-    ])
-    
-    if not pends:
-         lines.append("> *All 90-Day Plan operational areas have been formally appraised.*")
-    else:
-        for p in pends:
-            lines.append(f"- [ ] {p['task']['label']}")
-
-    return "\n".join(lines)
-
-with nav_tabs[4]:
-    st.markdown("### **Final Executive Appraisal Constructor**")
-    st.write("Review the compiled statuses, notes, and remediations. This report constructs itself in real-time as you progress through the 90-day plan.")
-    
-    report_md = generate_appraisal_report(current_day)
-    
-    col_view, col_action = st.columns([2, 1])
-    
-    with col_view:
-        # Render Markdown compilation cleanly in a stylized CSS container
-        st.markdown(
-            f"""<div style="background-color: #1E293B; padding: 25px; border-radius: 12px; border: 1px solid #334155; max-height: 550px; overflow-y: auto; font-family: monospace; font-size: 14px;">
-            {report_md.replace('---', '<hr style="border-color: #334155; margin: 20px 0;">').replace('\n', '<br>')}
-            </div>""", 
-            unsafe_allow_html=True
-        )
+    with col_lara:
+        st.markdown("#### **LARA Supervision Ledger & Co-Signature Lock**")
+        st.markdown("""
+        *   **MCL 333.18223 Mandate**: Minimum 4 hours/month individual face-to-face LP supervision required for all LLPs.
+        *   **Form LARA/BPL Rev. 6/25**: Official monthly logs must be signed and archived in central HR.
+        *   **EHR Routing Lock**: Claims involving LLP-rendered psychometrics (`96138`) are blocked from release until supervising LP co-signs note.
+        """)
         
-    with col_action:
-        st.info("The document compiles all findings, qualitative notes, and required CCBHC remediations into a single strategic export.")
-        st.download_button(
-            label="📥 Download Executive Appraisal (.md)",
-            data=report_md,
-            file_name=f"CNS_Appraisal_Report_Day_{current_day}.md",
-            mime="text/markdown",
-            use_container_width=True,
-            type="primary"
-        )
+        lara_sample = pd.DataFrame({
+            "Clinician Name": ["LLP Clinician A", "LLP Clinician B", "TLLP Clinician C", "LLP Clinician D"],
+            "Clinic Location": ["Detroit", "Pontiac", "Southfield", "Eastpointe"],
+            "Supervision Logged (Hrs)": [4.5, 4.0, 2.5, 4.0],
+            "Form Rev 6/25 Status": ["Verified", "Verified", "Missing 1.5 Hrs", "Verified"],
+            "EHR Co-Signature Status": ["100% Signed", "100% Signed", "Locked / Pending", "100% Signed"]
+        })
+        st.dataframe(lara_sample, use_container_width=True)
+        
+    with col_qbp:
+        st.markdown("#### **CCBHC Quality Measures & QBP Benchmarks**")
+        st.markdown("""
+        *   **Time to Services (I-SERV)**: Days to initial eval and initial clinical service.
+        *   **Depression Remission at 6 Mo (DEP-REM-6)**: PHQ-9 score < 5 at 6 months.
+        *   **Suicide Risk Assessment (SRA-A / SRA-C)**: Adult and pediatric SRA completion rates.
+        """)
+        
+        qbp_sample = pd.DataFrame({
+            "Quality Measure": ["I-SERV: Routine Access", "I-SERV: Urgent Access", "DEP-REM-6", "SRA-A / SRA-C"],
+            "MDHHS Target Benchmark": ["14 Calendar Days", "1 Business Day", "≥ 22.5%", "100% Completion"],
+            "Current CNS Performance": ["11.2 Days", "0.8 Days", "26.4%", "98.2%"],
+            "QBP Pool Alignment": ["Compliant", "Compliant", "On Track for QBP", "Compliant"]
+        })
+        st.dataframe(qbp_sample, use_container_width=True)
+
+# Footer
+st.markdown("---")
+st.caption("CNS Healthcare Psychological Services Appraisal Web App • Grounded in 90-Day Appraisal Plan, CCBHC Demonstration Guidelines, and LARA Statutes")
